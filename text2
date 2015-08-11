@@ -1,0 +1,98 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{wrapfig}
+\usepackage{enumerate}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}
+\usepackage{paralist}
+\usepackage{fancyhdr}
+\setlength{\headheight}{0.6in}
+\setlength{\headwidth}{\textwidth}
+\fancyhead[L]{}% empty left
+\fancyhead[R]{ % right
+   \includegraphics[height=0.53in]{../../iiitbLogo.jpeg}
+}
+\pagestyle{fancy}
+\author{Prof. G. Srinivasaraghavan}
+\title{Huffman Coding}
+\begin{document}
+\maketitle
+
+Huffman Coding is probably the most well-known among Data Compression methods. It is also quite simple to implement and works reasonably well for plain text files.\\
+
+A coding scheme is a mapping from the standard representation for characters that a given 'message' is made up of to another representation. The objective here is to construct a coding scheme that reduces the size of the message. Such compression methods help in efficient transmission of messages --- less the volume of data transmitted, lower the bandwidth requirement for the communication. So to communicate a large message $\mathcal{M}$, we choose an appropriate coding scheme $\mathcal{C}$ and transmit $\mathcal{M}' = \mathcal{C}(\mathcal{M})$. The receiver receives $\mathcal{M}$ and decodes the transmitted message to recover $\mathcal{M} \approxeq \mathcal{M}'' = \mathcal{D}(\mathcal{M}')$. Clearly for $\mathcal{C}$ to be a useful compression scheme we need that $|\mathcal{M}'|\ll |\mathcal{M}|$, where $|\cdots|$ denotes the size. In many cases we will also require that that the scheme is \emph{lossless} i.e., $\mathcal{M} \equiv \mathcal{M}''$ --- we recover the original message exactly after decoding. Incidentally not all coding schemes need be lossless --- the JPEG compression used for media files is a well-known example of a compression scheme that is not lossless.\\
+
+Huffman Coding belongs to a class of lossless coding schemes called 'Prefix Codes'. Prefix Codes (ideally the name ought to have been 'Prefix-free Codes') are codes where the codes of no two characters in the message to be encoded are such that one is a prefix of the other. The 'prefix' property makes the decoding straightforward --- it is easy to find out unambiguously when the code for one character has ended and that for the next character starts while decoding the compressed file sequentially.\\
+
+The Huffman coding scheme is based on two key ideas:
+\begin{enumerate}
+\item{Simulate a complete binary-tree with the characters to be encoded at the leaves, to ensure that the code is prefix-free.}
+\item{Ensure frequently occurring characters in the original message get short codes.}
+\end{enumerate}
+
+\section{Huffman Tree}
+
+\begin{wrapfigure}{r}{0.5\textwidth}
+  \begin{center}
+    \includegraphics[width=0.48\textwidth]{HuffmanTree.jpg}
+  \end{center}
+  \caption{Huffman Tree}
+\end{wrapfigure}
+
+Imagine a complete binary tree\footnote{A \emph{Complete Binary Tree} is one where every non-leaf node has exactly two children.} in which all the leaf nodes are labelled with distinct individual characters in the message to be encoded. See the accompanying figure. Every edge in the tree connects a child-node to its parent. Label the edge $0$ if the edge joins a parent to its left child and $1$ if it joins the parent to its right child. The code for a character is extracted from the tree as follows: for any character (leaf) consider the path from the root of the Huffman Tree to the leaf. The concatenation of the labels along this path (written as a binary string with $0$s and $1$s) is the code for the character. The fact that the tree is a complete binary tree and that the codes for the individual characters are paths from the root to the corresponding leaf in the Huffman tree ensure that the code obtained usng the procedure described above is in fact prefix-free. Also it is easy to see that the characters closer to the root have shorter codes.\\
+
+The following section describes an implementation scheme which ensures that the most-frequent characters are the ones closer to the root than the rest. In other words it ensures that for any two characters $c_1$ and $c_2$, $f(c_1) \geq f(c_2) \Rightarrow d(c_1) leq d(c_2)$ were $f(c)$ is the frequency of occurrence of the character in the message to be encoded and $d(c)$ is the depth (distance from the root) of the character in the Huffman Tree.\\
+
+The algorithmic paradigm we use to achieve this is called the \emph{Greedy Method} --- making the best possible choice among the available options at every stage in the algorithm. It can be shown that this procedure actually results in a coding scheme that is as good as (in the degree of compression it achieves) any other prefix coding scheme. 
+
+\section{Implementation}
+The idea is to 'build' the Huffman Tree bottom-up. The bottom of the Huffman Tree should correspond to the most infrequent characters from those in the message. Therefore the algorithm starts with the two most infrequent characters, say $c_1$ and $c_2$, in the message and make them the left and right children respectively of a common parent $c$. The crucial observation here is: the Huffman Tree for the original message without the leaves corresponding to $c_1$ and $c_2$ is the same as the Huffman Tree for the same message with all occurrences of $c_1$ and $c_2$ replaced by $c$. Also the code for $c_1$ is just $0$ preceded by the code for $c$ and the code for $c_2$ is $1$ preceded by that for $c$. We can now repeat the same procedure for the new tree till the tree reduces to a single node. The pseudocode below makes this description more precise.\\
+
+The implementation relies on two key data structures
+\begin{inparaenum}[\itshape a\upshape)]
+\item{Heap: to support selection of the two most infrequent characters from among those currently being considered}
+\item{Stack: a list that is accessed only from one (right) end always, to reconstruct the code for each character once the tree has been simulated}
+\end{inparaenum}.
+
+\begin{algorithm}
+\caption{Compressing a given text file}
+\begin{algorithmic}[1]
+\Procedure{HuffmanCompress}{$textFile$}
+\State Let $h$ be a min-heap; initialized to empty heap
+\State \Comment{$h.pop()$ returns min; $h.push(a)$ adds $a$ and readjusts $h$}
+\State Let $s$ be a stack; initialized to empty stack
+\State \Comment{$s.pop()$ returns top element; $s.push(a)$ adds $a$ on top}
+\State Let $cHash = \{\}$ be a hash with characters as the keys
+\State Read $textFile$ and populate $cHash$ for every character in $textFile$
+\State \Comment{Now $cHash[c]$ is the \# occurrences of $c$ in $textFile$.}
+\For{$c$ in $cHash$}
+\State $h.push((c,cHash[c]))$\Comment{Adding the tuple (c, count) to the heap}
+\EndFor
+\While{$len(h) > 2$}
+\State $l_1 = h.pop(); l_2=h.pop()$
+\State Composite Char $c = (l_1[0]+l_2[0])$
+\State Composite Count $n = (l_1[1]+l_2[1])$
+\State $h.push((c,n))$
+\State $s.push((l_1, (c, 0)))$
+\State $s.push((l_1, (c, 1)))$
+\EndWhile
+\State $l = h.pop()$
+\If{$b_i = 1$}
+	\State $pow\gets (pow * n)$\Comment{Start a new term of the product}
+\EndIf
+\State $i\gets i-1$
+
+
+\State \textbf{return} $pow$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+
+
+
+\end{document}
